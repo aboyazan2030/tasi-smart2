@@ -1,0 +1,23 @@
+name: daily
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '30 13 * * 0-4'
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: python tasi_smart_score.py
+      - run: |
+          git config user.name "bot"
+          git config user.email "bot@bot.com"
+          git add data/ || true
+          git diff --quiet --cached || git commit -m "update"
+          git push || true
