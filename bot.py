@@ -1,10 +1,10 @@
 import os
 import requests
-import sqlite3
 import pandas as pd
+import glob
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
-DB_PATH = os.path.join(os.path.dirname(__file__), "data", "tasi.db")
+REPORTS_DIR = os.path.join(os.path.dirname(__file__), "reports")
 
 def send(chat_id, text):
     requests.post(
@@ -15,11 +15,12 @@ def send(chat_id, text):
 
 def get_latest_data():
     try:
-        conn = sqlite3.connect(DB_PATH)
-        df = pd.read_sql("SELECT * FROM scores ORDER BY date DESC, درجة DESC", conn)
-        conn.close()
-        latest = df[df['date'] == df['date'].max()]
-        return latest
+        files = glob.glob(os.path.join(REPORTS_DIR, "tasi_report_*.csv"))
+        if not files:
+            return None
+        latest = max(files)
+        df = pd.read_csv(latest, encoding="utf-8-sig")
+        return df
     except:
         return None
 
@@ -30,8 +31,8 @@ def cmd_top10(chat_id):
         return
     top = df.head(10)
     lines = ["🏆 أفضل 10 أسهم اليوم:", ""]
-    for i, row in top.iterrows():
-        lines.append(f"{row.get('الترتيب','')}- {row.get('الرمز','')} {row.get('الاسم','')} | درجة: {row.get('الدرجة','')} | {row.get('التصنيف','')}")
+    for _, row in top.iterrows():
+        lines.append(f"- {row.get('الرمز','')} {row.get('الاسم','')} | {row.get('الدرجة','')} | {row.get('التصنيف','')}")
     send(chat_id, "\n".join(lines))
 
 def cmd_search(chat_id, code):
@@ -44,7 +45,7 @@ def cmd_search(chat_id, code):
         send(chat_id, f"لم يتم العثور على السهم {code}")
         return
     r = row.iloc[0]
-    msg = f"تحليل سهم {r.get('الرمز','')} - {r.get('الاسم','')}\nالسعر: {r.get('السعر','')}\nالدرجة: {r.get('الدرجة','')}\nالتصنيف: {r.get('التصنيف','')}\nRSI: {r.get('RSI14','')}"
+    msg = f"تحليل سهم {r.get('الرمز','')} - {r.get('الاسم','')}\nالسعر: {r.get('السعر','')}\nالدرجة: {r.get('الدرجة','')}\nالتصنيف: {r.get('التصنيف','')}"
     send(chat_id, msg)
 
 def cmd_sector(chat_id):
@@ -59,12 +60,10 @@ def cmd_sector(chat_id):
     send(chat_id, "\n".join(lines))
 
 def process_updates():
-    offset = 0
     try:
-        r = requests.get(f"https://api.telegram.org/bot{TOKEN}/getUpdates?offset={offset}&timeout=5", timeout=10)
+        r = requests.get(f"https://api.telegram.org/bot{TOKEN}/getUpdates?timeout=5", timeout=10)
         updates = r.json().get("result", [])
         for update in updates:
-            offset = update["update_id"] + 1
             msg = update.get("message", {})
             chat_id = msg.get("chat", {}).get("id")
             text = msg.get("text", "").strip()
@@ -79,7 +78,7 @@ def process_updates():
             elif text == "/sector":
                 cmd_sector(chat_id)
             elif text == "/start":
-                send(chat_id, "مرحباً! الأوامر المتاحة:\n/top10 - أفضل 10 أسهم\n/search 2222 - تحليل سهم\n/sector - أفضل القطاعات")
+                send(chat_id, "مرحباً!\n/top10 - أفضل 10 أسهم\n/search 2222 - تحليل سهم\n/sector - أفضل القطاعات")
     except Exception as e:
         print(f"خطا: {e}")
 
