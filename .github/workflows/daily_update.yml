@@ -18,6 +18,7 @@ jobs:
           python-version: '3.11'
       - run: pip install -r requirements.txt
       - run: python tasi_smart_score.py
+      - run: python bot.py
       - run: |
           git config user.name "bot"
           git config user.email "bot@bot.com"
