@@ -32,7 +32,12 @@ def cmd_top10(chat_id):
     top = df.head(10)
     lines = ["🏆 أفضل 10 أسهم اليوم:", ""]
     for _, row in top.iterrows():
-        lines.append(f"- {row.get('الرمز','')} {row.get('الاسم','')} | {row.get('الدرجة','')} | {row.get('التصنيف','')}")
+        lines.append(
+            f"• {row.get('الرمز','')} - {row.get('الاسم','')}\n"
+            f"  السعر: {row.get('السعر','')} ر.س\n"
+            f"  الدرجة: {row.get('الدرجة','')}/100\n"
+            f"  التصنيف: {row.get('التصنيف','')}\n"
+        )
     send(chat_id, "\n".join(lines))
 
 def cmd_search(chat_id, code):
@@ -45,7 +50,14 @@ def cmd_search(chat_id, code):
         send(chat_id, f"لم يتم العثور على السهم {code}")
         return
     r = row.iloc[0]
-    msg = f"تحليل سهم {r.get('الرمز','')} - {r.get('الاسم','')}\nالسعر: {r.get('السعر','')}\nالدرجة: {r.get('الدرجة','')}\nالتصنيف: {r.get('التصنيف','')}"
+    msg = (
+        f"📊 تحليل سهم {r.get('الرمز','')} - {r.get('الاسم','')}\n\n"
+        f"السعر: {r.get('السعر','')} ر.س\n"
+        f"الدرجة: {r.get('الدرجة','')}/100\n"
+        f"التصنيف: {r.get('التصنيف','')}\n"
+        f"RSI: {r.get('RSI14','')}\n"
+        f"القطاع: {r.get('القطاع','')}"
+    )
     send(chat_id, msg)
 
 def cmd_sector(chat_id):
@@ -56,7 +68,7 @@ def cmd_sector(chat_id):
     sectors = df.groupby('القطاع')['الدرجة'].mean().sort_values(ascending=False).head(5)
     lines = ["📊 أفضل القطاعات اليوم:", ""]
     for sector, score in sectors.items():
-        lines.append(f"- {sector}: {score:.1f}")
+        lines.append(f"• {sector}: {score:.1f}/100")
     send(chat_id, "\n".join(lines))
 
 def process_updates():
@@ -78,7 +90,7 @@ def process_updates():
             elif text == "/sector":
                 cmd_sector(chat_id)
             elif text == "/start":
-                send(chat_id, "مرحباً!\n/top10 - أفضل 10 أسهم\n/search 2222 - تحليل سهم\n/sector - أفضل القطاعات")
+                send(chat_id, "مرحباً بك في بوت تاسي الذكي!\n\nالأوامر المتاحة:\n/top10 - أفضل 10 أسهم\n/search 2222 - تحليل سهم معين\n/sector - أفضل القطاعات")
     except Exception as e:
         print(f"خطا: {e}")
 
