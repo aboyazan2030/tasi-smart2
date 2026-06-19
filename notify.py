@@ -17,9 +17,11 @@ def send_telegram(message: str):
         print("تيليجرام: لم يتم ضبط TOKEN أو CHAT_ID")
         return False
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "HTML"}
+data = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
+
     try:
-        r = requests.post(url, data=data, timeout=10)
+       r = requests.post(url, json=data, timeout=10)
+
         if r.status_code == 200:
             print("✅ تم إرسال إشعار تيليجرام")
             return True
