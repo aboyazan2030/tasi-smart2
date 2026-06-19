@@ -1,16 +1,20 @@
+import os
 import requests
 
-TOKEN = "8963367611:AAGCwaWQUP5x1dUBXW610ZyxiLnPJruEk2o"
-CHAT = "7213801520"
-
 def send_telegram(msg):
+    token = os.environ.get("TELEGRAM_TOKEN", "")
+    chat = os.environ.get("TELEGRAM_CHAT_ID", "")
+    print(f"TOKEN_LEN={len(token)} CHAT={chat}")
+    if not token or not chat:
+        print("لا يوجد token او chat_id")
+        return
     try:
         r = requests.post(
-            f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-            json={"chat_id": CHAT, "text": msg},
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat, "text": msg},
             timeout=10
         )
-        print(f"تيليجرام: {r.status_code} - {r.text[:100]}")
+        print(f"response: {r.status_code} {r.text[:100]}")
     except Exception as e:
         print(f"خطا: {e}")
 
