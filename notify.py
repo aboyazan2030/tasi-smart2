@@ -17,11 +17,9 @@ def send_telegram(message: str):
         print("تيليجرام: لم يتم ضبط TOKEN أو CHAT_ID")
         return False
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-data = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
-
+    data = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
     try:
-       r = requests.post(url, json=data, timeout=10)
-
+        r = requests.post(url, json=data, timeout=10)
         if r.status_code == 200:
             print("✅ تم إرسال إشعار تيليجرام")
             return True
@@ -57,35 +55,31 @@ def send_email(subject: str, body: str):
 
 
 def build_alert_message(top_stocks, date_str: str) -> str:
-    """يبني رسالة التنبيه اليومية"""
     buy_signals  = [s for s in top_stocks if s["التصنيف"] in ("🚀 اختراق صاعد", "📦 تجميع هادئ", "🔄 ارتداد من تشبع بيع")]
     sell_signals = [s for s in top_stocks if s["التصنيف"] == "⚠️ تصريف/توزيع"]
 
-    lines = [
-        f"<b>📊 تقرير تاسي الذكي – {date_str}</b>",
-        "",
-    ]
+    lines = ["📊 تقرير تاسي الذكي - " + date_str, ""]
 
     if buy_signals:
-        lines.append("🟢 <b>إشارات شراء / تجميع</b>")
+        lines.append("🟢 اشارات شراء / تجميع")
         for s in buy_signals[:8]:
             lines.append(
-                f"  • <b>{s['الرمز']} {s['الاسم']}</b> | درجة: {s['الدرجة']} | {s['التصنيف']}\n"
-                f"    السعر: {s['السعر']} ر.س | RSI: {s['RSI14']}"
+                f"• {s['الرمز']} {s['الاسم']} | درجة: {s['الدرجة']} | {s['التصنيف']}\n"
+                f"  السعر: {s['السعر']} ر.س | RSI: {s['RSI14']}"
             )
         lines.append("")
 
     if sell_signals:
-        lines.append("🔴 <b>تحذيرات تصريف / بيع</b>")
+        lines.append("🔴 تحذيرات تصريف / بيع")
         for s in sell_signals[:5]:
             lines.append(
-                f"  • <b>{s['الرمز']} {s['الاسم']}</b> | درجة: {s['الدرجة']} | {s['التصنيف']}\n"
-                f"    السعر: {s['السعر']} ر.س | RSI: {s['RSI14']}"
+                f"• {s['الرمز']} {s['الاسم']} | درجة: {s['الدرجة']} | {s['التصنيف']}\n"
+                f"  السعر: {s['السعر']} ر.س | RSI: {s['RSI14']}"
             )
         lines.append("")
 
     if not buy_signals and not sell_signals:
-        lines.append("لا توجد إشارات قوية اليوم.")
+        lines.append("لا توجد اشارات قوية اليوم.")
 
     lines.append("⚠️ هذا تحليل فني وليس توصية استثمارية.")
     return "\n".join(lines)
@@ -97,9 +91,8 @@ def send_daily_alerts(top_stocks, date_str: str):
     if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
         sent = send_telegram(msg)
     if EMAIL_TO and EMAIL_FROM and EMAIL_PASSWORD:
-        plain = msg.replace("<b>", "").replace("</b>", "")
-        html  = msg.replace("\n", "<br>")
-        send_email(f"تقرير تاسي الذكي – {date_str}", html)
+        html = msg.replace("\n", "<br>")
+        send_email(f"تقرير تاسي الذكي - {date_str}", html)
         sent = True
     if not sent:
-        print("تحذير: لم يُرسَل أي إشعار (لم تُضبط بيانات تيليجرام أو البريد)")
+        print("تحذير: لم يُرسَل أي اشعار (لم تُضبط بيانات تيليجرام أو البريد)")
