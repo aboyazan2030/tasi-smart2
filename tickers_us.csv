@@ -1,0 +1,41 @@
+code,name,sector
+AAPL,Apple,التقنية
+MSFT,Microsoft,التقنية
+NVDA,NVIDIA,التقنية
+GOOGL,Alphabet,التقنية
+META,Meta,التقنية
+AMZN,Amazon,التجزئة
+TSLA,Tesla,السيارات
+JPM,JPMorgan Chase,البنوك
+BAC,Bank of America,البنوك
+WFC,Wells Fargo,البنوك
+GS,Goldman Sachs,البنوك
+MS,Morgan Stanley,البنوك
+JNJ,Johnson & Johnson,الرعاية الصحية
+UNH,UnitedHealth,الرعاية الصحية
+PFE,Pfizer,الأدوية
+ABBV,AbbVie,الأدوية
+XOM,Exxon Mobil,الطاقة
+CVX,Chevron,الطاقة
+COP,ConocoPhillips,الطاقة
+WMT,Walmart,التجزئة
+HD,Home Depot,التجزئة
+PG,Procter & Gamble,السلع الاستهلاكية
+KO,Coca-Cola,المشروبات
+PEP,PepsiCo,المشروبات
+MCD,McDonald's,المطاعم
+V,Visa,الخدمات المالية
+MA,Mastercard,الخدمات المالية
+PYPL,PayPal,الخدمات المالية
+NFLX,Netflix,الترفيه
+DIS,Disney,الترفيه
+INTC,Intel,أشباه الموصلات
+AMD,AMD,أشباه الموصلات
+QCOM,Qualcomm,أشباه الموصلات
+BA,Boeing,الطيران
+CAT,Caterpillar,الصناعة
+GE,GE Aerospace,الصناعة
+T,AT&T,الاتصالات
+VZ,Verizon,الاتصالات
+NEE,NextEra Energy,المرافق
+BRK-B,Berkshire Hathaway,الخدمات المالية
