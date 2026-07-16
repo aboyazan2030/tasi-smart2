@@ -84,30 +84,42 @@ def cmd_analyze(chat_id, code):
         row = df[df['الرمز'].astype(str) == str(code)]
         if not row.empty:
             row_data = row.iloc[0]
+
     try:
         ticker = yf.Ticker(f"{code}.SR")
         hist = ticker.history(period="60d")
         if hist.empty:
             send(chat_id, "لم يتم العثور على بيانات السهم")
             return
-        current = hist['Close'].iloc[-1]
-        prev = hist['Close'].iloc[-2]
+
+        close_valid = hist['Close'].dropna()
+        if close_valid.empty:
+            send(chat_id, f"⚠️ لا تتوفر بيانات سعر حديثة لسهم {code} حالياً (قد يكون متوقفاً عن التداول مؤقتاً)")
+            return
+        current = close_valid.iloc[-1]
+        prev = close_valid.iloc[-2] if len(close_valid) >= 2 else current
+
         change = ((current - prev) / prev) * 100
         high_30 = hist['High'].tail(30).max()
         low_30 = hist['Low'].tail(30).min()
         ma20 = hist['Close'].tail(20).mean()
         ma50 = hist['Close'].tail(50).mean() if len(hist) >= 50 else ma20
+
         support = round(low_30 * 1.01, 2)
         target1 = round(current * 1.05, 2)
         target2 = round(current * 1.10, 2)
         stop = round(current * 0.96, 2)
         rr = round((target1 - current) / (current - stop), 1)
+
         trend = "صاعد 📈" if current > ma20 > ma50 else "هابط 📉" if current < ma20 < ma50 else "محايد ↔️"
+
         name = row_data.get('الاسم', code) if row_data is not None else code
         score = row_data.get('الدرجة', '-') if row_data is not None else '-'
         classification = row_data.get('التصنيف', '-') if row_data is not None else '-'
         rsi = row_data.get('RSI14', '-') if row_data is not None else '-'
+
         recommendation = "شراء مضاربي ✅" if trend == "صاعد 📈" and str(score) != '-' and float(str(score)) > 60 else "انتظار وترقب ⏳"
+
         msg = (
             f"📩 تحليل سهم {name} ({code})\n\n"
             f"💰 السعر: {current:.2f} ر.س ({change:+.1f}%)\n"
@@ -131,11 +143,14 @@ def process_update(update, processed_ids):
     if update_id in processed_ids:
         return update_id
     processed_ids.add(update_id)
+
     msg = update.get("message", {})
     chat_id = msg.get("chat", {}).get("id")
     text = msg.get("text", "").strip()
+
     if not chat_id or not text:
         return update_id
+
     if text == "/start":
         send(chat_id, (
             "مرحباً بك في بوت تاسي الذكي! 🤖\n\n"
@@ -153,6 +168,7 @@ def process_update(update, processed_ids):
         cmd_analyze(chat_id, text.split()[1])
     elif text == "/sector":
         cmd_sector(chat_id)
+
     return update_id
 
 def run_bot():
@@ -172,7 +188,7 @@ def run_bot():
                 offset = max(offset, update_id + 1)
         except Exception as e:
             print(f"خطأ: {e}")
-            time.sleep(5)
+        time.sleep(5)
 
 if __name__ == "__main__":
     run_bot()
