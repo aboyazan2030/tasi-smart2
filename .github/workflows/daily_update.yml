@@ -21,6 +21,6 @@ jobs:
       - run: |
           git config user.name "bot"
           git config user.email "bot@bot.com"
-          git add data/ || true
+          git add data/ reports/ || true
           git diff --quiet --cached || git commit -m "update"
           git push || true
