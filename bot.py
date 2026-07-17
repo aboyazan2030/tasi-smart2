@@ -7,7 +7,6 @@ import time
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 REPORTS_DIR = os.path.join(os.path.dirname(__file__), "reports")
-FAIR_PE_BENCHMARK = 15  # مضاعف ربحية مرجعي تقريبي عند عدم توفر بيانات قطاع دقيقة
 
 def send(chat_id, text):
     try:
@@ -133,24 +132,8 @@ def cmd_analyze(chat_id, code):
 
         trend = "صاعد 📈" if current > ma20 > ma50 else "هابط 📉" if current < ma20 < ma50 else "محايد ↔️"
 
-        # ---- السعر العادل ----
-        fair_technical = (ma50 + (support + resistance) / 2) / 2
-        fair_financial = None
-        try:
-            info = ticker.info
-            trailing_pe = info.get("trailingPE")
-            eps = None
-            if trailing_pe and trailing_pe > 0:
-                eps = current / trailing_pe
-            if eps and eps > 0:
-                fair_financial = eps * FAIR_PE_BENCHMARK
-        except Exception:
-            fair_financial = None
-
-        if fair_financial and fair_financial > 0:
-            fair_value = round((fair_technical + fair_financial) / 2, 2)
-        else:
-            fair_value = round(fair_technical, 2)
+        # ---- السعر العادل (فني فقط - بدون استدعاء شبكي إضافي) ----
+        fair_value = round((ma50 + (support + resistance) / 2) / 2, 2)
 
         diff_pct = round(((current - fair_value) / fair_value) * 100, 1) if fair_value else 0
 
