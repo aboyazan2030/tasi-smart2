@@ -7,6 +7,7 @@ import time
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 REPORTS_DIR = os.path.join(os.path.dirname(__file__), "reports")
+FAIR_PE_BENCHMARK = 15  # مضاعف ربحية مرجعي تقريبي عند عدم توفر بيانات قطاع دقيقة
 
 def send(chat_id, text):
     try:
@@ -76,6 +77,24 @@ def cmd_sector(chat_id):
         lines.append(f"• {sector}: {score:.1f}/100")
     send(chat_id, "\n".join(lines))
 
+def build_entry_zones(support, fair_value, current):
+    """يبني 3 مناطق دخول مرتبة حسب الأفضلية"""
+    zone_excellent_low = round(support, 2)
+    zone_excellent_high = round(support * 1.03, 2)
+
+    mid = (support + fair_value) / 2
+    zone_second_low = round(mid * 0.98, 2)
+    zone_second_high = round(mid * 1.02, 2)
+
+    zone_first_low = round(fair_value * 0.95, 2)
+    zone_first_high = round(fair_value * 1.0, 2)
+
+    return {
+        "ممتازة": (zone_excellent_low, zone_excellent_high),
+        "ثانية": (zone_second_low, zone_second_high),
+        "أولى": (zone_first_low, zone_first_high),
+    }
+
 def cmd_analyze(chat_id, code):
     send(chat_id, f"⏳ جاري تحليل سهم {code}...")
     df = get_latest_data()
@@ -106,26 +125,68 @@ def cmd_analyze(chat_id, code):
         ma50 = hist['Close'].tail(50).mean() if len(hist) >= 50 else ma20
 
         support = round(low_30 * 1.01, 2)
+        resistance = round(high_30 * 0.99, 2)
+        stop = round(current * 0.96, 2)
         target1 = round(current * 1.05, 2)
         target2 = round(current * 1.10, 2)
-        stop = round(current * 0.96, 2)
-        rr = round((target1 - current) / (current - stop), 1)
+        rr = round((target1 - current) / (current - stop), 1) if current != stop else 0
 
         trend = "صاعد 📈" if current > ma20 > ma50 else "هابط 📉" if current < ma20 < ma50 else "محايد ↔️"
+
+        # ---- السعر العادل ----
+        fair_technical = (ma50 + (support + resistance) / 2) / 2
+        fair_financial = None
+        try:
+            info = ticker.info
+            trailing_pe = info.get("trailingPE")
+            eps = None
+            if trailing_pe and trailing_pe > 0:
+                eps = current / trailing_pe
+            if eps and eps > 0:
+                fair_financial = eps * FAIR_PE_BENCHMARK
+        except Exception:
+            fair_financial = None
+
+        if fair_financial and fair_financial > 0:
+            fair_value = round((fair_technical + fair_financial) / 2, 2)
+        else:
+            fair_value = round(fair_technical, 2)
+
+        diff_pct = round(((current - fair_value) / fair_value) * 100, 1) if fair_value else 0
+
+        if diff_pct <= -5:
+            status = "🟢 منطقة شراء (السعر أقل من العادل)"
+        elif -5 < diff_pct <= 5:
+            status = "🟡 قريب من السعر العادل - دخول حذر"
+        else:
+            status = "🔴 مرتفع عن السعر العادل - يفضل الانتظار أو جني أرباح"
+
+        zones = build_entry_zones(support, fair_value, current)
 
         name = row_data.get('الاسم', code) if row_data is not None else code
         score = row_data.get('الدرجة', '-') if row_data is not None else '-'
         classification = row_data.get('التصنيف', '-') if row_data is not None else '-'
         rsi = row_data.get('RSI14', '-') if row_data is not None else '-'
 
-        recommendation = "شراء مضاربي ✅" if trend == "صاعد 📈" and str(score) != '-' and float(str(score)) > 60 else "انتظار وترقب ⏳"
+        entry_advice = ""
+        if diff_pct > 5:
+            entry_advice = f"⚠️ لا يُنصح بالدخول عند السعر الحالي {current:.2f} ر.س، والانتظار حتى وصول السهم لمناطق الدخول المحددة أدناه.\n\n"
+
+        recommendation = "شراء مضاربي ✅" if trend == "صاعد 📈" and str(score) != '-' and float(str(score)) > 60 and diff_pct <= 5 else "انتظار وترقب ⏳"
 
         msg = (
             f"📩 تحليل سهم {name} ({code})\n\n"
-            f"💰 السعر: {current:.2f} ر.س ({change:+.1f}%)\n"
+            f"💰 السعر الحالي: {current:.2f} ر.س ({change:+.1f}%)\n"
+            f"⚖️ السعر العادل التقديري: {fair_value:.2f} ر.س\n"
+            f"📐 الفرق عن العادل: {diff_pct:+.1f}%\n"
+            f"📍 الحالة: {status}\n\n"
             f"📊 الدرجة: {score}/100 | {classification}\n"
             f"📈 RSI: {rsi} | الاتجاه: {trend}\n\n"
-            f"📍 منطقة الدخول: {current:.2f} ر.س\n"
+            f"{entry_advice}"
+            f"🎯 مناطق الدخول المقترحة (من الأفضل للأقل):\n"
+            f"  🥇 ممتازة: {zones['ممتازة'][0]} - {zones['ممتازة'][1]} ر.س\n"
+            f"  🥈 ثانية: {zones['ثانية'][0]} - {zones['ثانية'][1]} ر.س\n"
+            f"  🥉 أولى: {zones['أولى'][0]} - {zones['أولى'][1]} ر.س\n\n"
             f"🛡️ الدعم: {support} ر.س\n"
             f"🔴 وقف الخسارة: {stop} ر.س\n"
             f"🎯 الهدف الأول: {target1} ر.س\n"
