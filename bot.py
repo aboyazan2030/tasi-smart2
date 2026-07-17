@@ -4,11 +4,11 @@ import pandas as pd
 import glob
 import sqlite3
 import yfinance as yf
-import time
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 REPORTS_DIR = os.path.join(os.path.dirname(__file__), "reports")
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "tasi_scores.db")
+OFFSET_FILE = os.path.join(os.path.dirname(__file__), "data", "bot_offset.txt")
 
 def send(chat_id, text):
     try:
@@ -19,6 +19,21 @@ def send(chat_id, text):
         )
     except Exception as e:
         print(f"خطأ إرسال: {e}")
+
+def load_offset():
+    try:
+        with open(OFFSET_FILE, "r") as f:
+            return int(f.read().strip())
+    except Exception:
+        return 0
+
+def save_offset(offset):
+    try:
+        os.makedirs(os.path.dirname(OFFSET_FILE), exist_ok=True)
+        with open(OFFSET_FILE, "w") as f:
+            f.write(str(offset))
+    except Exception as e:
+        print(f"خطأ حفظ offset: {e}")
 
 def get_latest_data():
     try:
@@ -32,7 +47,6 @@ def get_latest_data():
         return None
 
 def get_latest_us_data():
-    """يقرأ آخر تقرير أمريكي محفوظ من جدول daily_scores_us في قاعدة البيانات"""
     try:
         if not os.path.exists(DB_PATH):
             return None
@@ -120,7 +134,6 @@ def cmd_sector(chat_id):
     send(chat_id, "\n".join(lines))
 
 def build_entry_zones(support, fair_value, current):
-    """يبني 3 مناطق دخول مرتبة حسب الأفضلية"""
     zone_excellent_low = round(support, 2)
     zone_excellent_high = round(support * 1.03, 2)
 
@@ -137,8 +150,23 @@ def build_entry_zones(support, fair_value, current):
         "أولى": (zone_first_low, zone_first_high),
     }
 
+def get_live_price(ticker):
+    """يحاول جلب السعر اللحظي الحي عبر fast_info (خفيفة وسريعة)؛ يعود None عند الفشل"""
+    try:
+        fi = ticker.fast_info
+        for key in ("last_price", "lastPrice", "regularMarketPrice"):
+            val = None
+            try:
+                val = fi[key]
+            except Exception:
+                val = getattr(fi, key, None)
+            if val:
+                return float(val)
+    except Exception as e:
+        print(f"تعذر جلب السعر الحي: {e}")
+    return None
+
 def _analyze_core(chat_id, code, yahoo_symbol, currency_label, row_data):
-    """المنطق المشترك بين تحليل الأسهم السعودية والأمريكية"""
     try:
         ticker = yf.Ticker(yahoo_symbol)
         hist = ticker.history(period="60d")
@@ -150,8 +178,17 @@ def _analyze_core(chat_id, code, yahoo_symbol, currency_label, row_data):
         if close_valid.empty:
             send(chat_id, f"⚠️ لا تتوفر بيانات سعر حديثة لسهم {code} حالياً (قد يكون متوقفاً عن التداول مؤقتاً)")
             return
-        current = close_valid.iloc[-1]
-        prev = close_valid.iloc[-2] if len(close_valid) >= 2 else current
+
+        last_daily_close = close_valid.iloc[-1]
+        prev_daily_close = close_valid.iloc[-2] if len(close_valid) >= 2 else last_daily_close
+
+        live_price = get_live_price(ticker)
+        if live_price:
+            current = live_price
+            prev = last_daily_close
+        else:
+            current = last_daily_close
+            prev = prev_daily_close
 
         change = ((current - prev) / prev) * 100
         high_30 = hist['High'].tail(30).max()
@@ -191,9 +228,11 @@ def _analyze_core(chat_id, code, yahoo_symbol, currency_label, row_data):
 
         recommendation = "شراء مضاربي ✅" if trend == "صاعد 📈" and str(score) != '-' and float(str(score)) > 60 and diff_pct <= 5 else "انتظار وترقب ⏳"
 
+        price_note = "" if live_price else " (سعر الإغلاق - السوق مغلق حاليًا)"
+
         msg = (
             f"📩 تحليل سهم {name} ({code})\n\n"
-            f"💰 السعر الحالي: {current:.2f} {currency_label} ({change:+.1f}%)\n"
+            f"💰 السعر الحالي: {current:.2f} {currency_label}{price_note} ({change:+.1f}%)\n"
             f"⚖️ السعر العادل التقديري: {fair_value:.2f} {currency_label}\n"
             f"📐 الفرق عن العادل: {diff_pct:+.1f}%\n"
             f"📍 الحالة: {status}\n\n"
@@ -272,7 +311,8 @@ def process_update(update, processed_ids):
             "/sector - أفضل القطاعات\n\n"
             "الأوامر المتاحة (السوق الأمريكي):\n"
             "/ustop10 - أفضل 10 أسهم أمريكية اليوم\n"
-            "/us AAPL - تحليل كامل لسهم أمريكي"
+            "/us AAPL - تحليل كامل لسهم أمريكي\n\n"
+            "ملاحظة: البوت يتحقق من الرسائل كل 5 دقائق تقريبًا"
         ))
     elif text == "/top10":
         cmd_top10(chat_id)
@@ -289,24 +329,24 @@ def process_update(update, processed_ids):
 
     return update_id
 
-def run_bot():
-    print("🚀 البوت يعمل الآن...")
-    offset = 0
-    processed_ids = set()
-    while True:
-        try:
-            r = requests.get(
-                f"https://api.telegram.org/bot{TOKEN}/getUpdates",
-                params={"offset": offset, "timeout": 30},
-                timeout=35
-            )
-            updates = r.json().get("result", [])
-            for update in updates:
-                update_id = process_update(update, processed_ids)
+def run_once():
+    offset = load_offset()
+    try:
+        r = requests.get(
+            f"https://api.telegram.org/bot{TOKEN}/getUpdates",
+            params={"offset": offset, "timeout": 10},
+            timeout=15
+        )
+        updates = r.json().get("result", [])
+        processed_ids = set()
+        for update in updates:
+            update_id = process_update(update, processed_ids)
+            if update_id is not None:
                 offset = max(offset, update_id + 1)
-        except Exception as e:
-            print(f"خطأ: {e}")
-        time.sleep(5)
+        save_offset(offset)
+        print(f"✅ تمت معالجة {len(updates)} تحديث. offset الجديد: {offset}")
+    except Exception as e:
+        print(f"خطأ: {e}")
 
 if __name__ == "__main__":
-    run_bot()
+    run_once()
